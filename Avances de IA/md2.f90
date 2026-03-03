@@ -210,7 +210,7 @@ program main
   use declare
   use globals
   implicit none
-  integer :: i, j, ii, count
+  integer :: i, j, ii, jj, count
   integer, parameter :: Nwrite = 10           ! number of z snapshots to save
   real(dp), dimension(2*Nt) :: temp1, temp2
 
@@ -231,9 +231,10 @@ program main
 
   write(*, *) 'Starting propagation...'
 
-  open(10, file='results.dat')
-  open(11, file='results2.dat')
-  open(12, file='results3.dat')
+  open(10, file='results.dat') ! center of pulse
+  open(11, file='results2.dat') ! middle of beam (in radius)
+  open(12, file='results3.dat') ! edge of beam (radius edge)
+  open(13, file='field.dat') ! pulse front
   do i = 1, Nz
 
     ! --- Write snapshot ---
@@ -243,10 +244,15 @@ program main
         write(10, *) t(j), z(i), real(Afield(j, 1))**2
         write(11, *) t(j), z(i), real(Afield(j, Nr/2))**2
         write(12, *) t(j), z(i), real(Afield(j, Nr))**2
+        do jj=1, Nr
+          write(13, *) t(j), r(jj), real(Afield(j, jj))**2
+        end do
+        write(13, *)
       end do
       write(10, *); write(10, *)
       write(11, *); write(11, *)
       write(12, *); write(12, *)
+      write(13, *)
     end if
 
     ! ============================================================
@@ -306,6 +312,7 @@ program main
   close(10)
   close(11)
   close(12)
+  close(13)
   write(*, *) 'Done. Output written to results.dat'
 
 end program main
