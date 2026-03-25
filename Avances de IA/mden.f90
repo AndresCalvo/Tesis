@@ -123,15 +123,60 @@ module globals
       return
     end function soliton
     !___________________________________________________________________
-    function lin_sus(w)
+    function mat_to_vec(mat) result(vec) !specifically designed for this 7 level matrix with 10 allowed transitions
       use declare
+      complex(cdp), intent(in) :: mat(Nt, Nr, 7, 7)
+      real(dp)                 :: vec(Nt, Nr, 27)
       implicit none
-      
-      real(dp), intent(in) :: w
-      real(dp) :: lin_sus
-      lin_sus = ( NDensity / ( eps0 * hbar ) )
-      return
-    end function lin_sus
+
+      vec(:, :, 1) = mat(:, :, 1, 1); vec(:, :, 2) = mat(:, :, 2, 2)
+      vec(:, :, 3) = mat(:, :, 3, 3); vec(:, :, 4) = mat(:, :, 4, 4)
+      vec(:, :, 5) = mat(:, :, 5, 5); vec(:, :, 6) = mat(:, :, 6, 6)
+      vec(:, :, 7) = mat(:, :, 7, 7)
+
+      vec(:, :, 8) = real(mat(:, :, 1, 2), kind=dp); vec(:, :, 9) = aimag(mat(:, :, 1, 2), kind=dp)
+      vec(:, :, 10) = real(mat(:, :, 1, 6), kind=dp); vec(:, :, 11) = aimag(mat(:, :, 1, 6), kind=dp)
+      vec(:, :, 12) = real(mat(:, :, 2, 3), kind=dp); vec(:, :, 13) = aimag(mat(:, :, 2, 3), kind=dp)
+      vec(:, :, 14) = real(mat(:, :, 2, 4), kind=dp); vec(:, :, 15) = aimag(mat(:, :, 2, 4), kind=dp)
+      vec(:, :, 16) = real(mat(:, :, 2, 5), kind=dp); vec(:, :, 17) = aimag(mat(:, :, 2, 5), kind=dp)
+      vec(:, :, 18) = real(mat(:, :, 2, 7), kind=dp); vec(:, :, 19) = aimag(mat(:, :, 2, 7), kind=dp)
+      vec(:, :, 20) = real(mat(:, :, 3, 6), kind=dp); vec(:, :, 21) = aimag(mat(:, :, 3, 6), kind=dp)
+      vec(:, :, 22) = real(mat(:, :, 4, 6), kind=dp); vec(:, :, 23) = aimag(mat(:, :, 4, 6), kind=dp)
+      vec(:, :, 24) = real(mat(:, :, 5, 6), kind=dp); vec(:, :, 25) = aimag(mat(:, :, 5, 6), kind=dp)
+      vec(:, :, 26) = real(mat(:, :, 6, 7), kind=dp); vec(:, :, 27) = aimag(mat(:, :, 6, 7), kind=dp)
+    end function mat_to_vec
+    !___________________________________________________________________
+    function vec_to_mat(vec) result(mat) !specifically designed for this 7 level matrix with 10 allowed transitions
+      use declare
+      real(dp), intent(in) :: vec(Nt, Nr, 27)
+      complex(cdp) :: mat(Nt, Nr, 7, 7)
+      implicit none
+
+      mat(:, :, 1, 1) = vec(:, :, 1)
+      mat(:, :, 2, 2) = vec(:, :, 2)
+      mat(:, :, 3, 3) = vec(:, :, 3)
+      mat(:, :, 4, 4) = vec(:, :, 4)
+      mat(:, :, 5, 5) = vec(:, :, 5)
+      mat(:, :, 6, 6) = vec(:, :, 6)
+      mat(:, :, 7, 7) = vec(:, :, 7)
+      mat(:, :, 1, 2) = vec(:, :, 8)  + im * vec(:, :, 9)
+      mat(:, :, 1, 6) = vec(:, :, 10) + im * vec(:, :, 11)
+      mat(:, :, 2, 3) = vec(:, :, 12) + im * vec(:, :, 13)
+      mat(:, :, 2, 4) = vec(:, :, 14) + im * vec(:, :, 15)
+      mat(:, :, 2, 5) = vec(:, :, 16) + im * vec(:, :, 17)
+      mat(:, :, 2, 7) = vec(:, :, 18) + im * vec(:, :, 19)
+      mat(:, :, 3, 6) = vec(:, :, 20) + im * vec(:, :, 21)
+      mat(:, :, 4, 6) = vec(:, :, 22) + im * vec(:, :, 23)
+      mat(:, :, 5, 6) = vec(:, :, 24) + im * vec(:, :, 25)
+      mat(:, :, 6, 7) = vec(:, :, 26) + im * vec(:, :, 27)
+    end function vec_to_mat
+    !______________________________________
+    function SL_target_func(a) result(mdens_func)
+    use declare
+    complex(cdp), intent(in) :: a(Nt, Nr)
+    complex(cdp) :: mdens_func(Nt, Nr)
+    implicit none
+
   end module globals
 !_____________________________________________________________________
 subroutine setup !sets range arrays for time and space coordinates
@@ -193,8 +238,6 @@ program main
   
     ! main loop start
     !call matrixDensityEvol(Afield, rho)
-    rho = 0.0_dp
-    rho(:, :, 1, 1) = 0.0_dp
     call TotalPolarization(rho, Pfield)
 
     ! A and P to Fourier space
@@ -242,12 +285,15 @@ end subroutine RabiFreq
 !________________________________________________________________________
 subroutine matrixDensityEvol(a, r) !solves for rho in time with A field as input
   use nrtype
+  use globals, only : mat_to_vec, vec_to_mat
   use declare, only : dt, decay, omega0, im, Nr, Nt, Delta
   implicit none
   complex(cdp), dimension(Nt, Nr),intent(in) :: a
   complex(cdp), dimension(Nt, Nr, 7, 7), intent(out) :: r ! r for rho, density matrix
   ! COMPLEX(CDP), DIMENSION(Nr, Nt, 7, 7) :: rabi ! rabi values
   complex(cdp), dimension(Nt, Nr, 7, 7) :: rabi
+  real(dp), dimension(Nt, Nr, 27) :: linr
+  rea
   integer :: i
   real(dp) :: Tr12, Tr16, Tr23, Tr24, Tr25, Tr27, Tr36, Tr46, Tr56, Tr67
 
@@ -263,18 +309,10 @@ subroutine matrixDensityEvol(a, r) !solves for rho in time with A field as input
   Tr67 = decay
 
   call RabiFreq(a, rabi)
-  r(:, 1, 1, 1) = 1.0_dp / real(7, dp)
-  r(:, 1, 1, 2) = 0.0_dp
-  r(:, 1, 1, 6) = 0.0_dp
-  r(:, 1, 2, 3) = 0.0_dp
-  r(:, 1, 2, 4) = 0.0_dp
-  r(:, 1, 2, 5) = 0.0_dp
-  r(:, 1, 2, 7) = 0.0_dp
-  r(:, 1, 3, 6) = 0.0_dp
-  r(:, 1, 4, 6) = 0.0_dp
-  r(:, 1, 5, 6) = 0.0_dp
-  r(:, 1, 6, 7) = 0.0_dp
- 
+  r = 0.0_dp
+  r(1, :, 1, 1) = 1.0_dp / real(7, dp) !1
+  linr = mat_to_vec(r)
+  
   do i=1, Nt - 1
     ! diagonal elements
     r(:, i + 1, 1, 1) = r(:, i, 1, 1) + ( decay * ( r(:, i, 2, 2) + r(:, i, 6, 6) ) &
