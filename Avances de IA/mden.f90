@@ -40,7 +40,7 @@ module declare
   real(dp), parameter     :: dw = pi / Tmax            ! delta omega, frequency step size
 
   ! atomic properties
-  real(dp), parameter               :: NDensity = 2.7E10_dp ! atomic density
+  real(dp), parameter               :: NDensity = 2.7E10_dp ! atomic density [m^-3]
   real(dp), parameter, dimension(7) :: EnergyLevels = [ 6.19921_dp, 8.43651_dp, 9.68565_dp, 9.81955_dp, 9.93349_dp, 10.401_dp, 11.0151_dp ] ! [eV]
   real(dp), parameter, dimension(7) :: DecayRates = [ 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp ] ! decay gammas
   !real(dp), parameter, dimension(7) :: FrequencyLevels = EnergyLevels / hbar   ! energy frequency levels
@@ -174,7 +174,7 @@ module globals
     function SL_target_func(a) result(mdens_func)
     use declare
     complex(cdp), intent(in) :: a(Nt, Nr)
-    complex(cdp) :: mdens_func(Nt, Nr)
+    complex(cdp) :: mdens_func(Nt, Nr, 27, 27)
     implicit none
 
   end module globals
@@ -193,9 +193,7 @@ subroutine setup !sets range arrays for time and space coordinates
 
   do i=1, Nt
     t(i) = (i-1) * 2.0_dp * Tmax / Nt - Tmax
-
     initial_a_t(i) = cmplx(sech(t(i)), 0.0_dp, kind=cdp)
-
   end do
 
   do i=1, Nz
@@ -293,7 +291,6 @@ subroutine matrixDensityEvol(a, r) !solves for rho in time with A field as input
   ! COMPLEX(CDP), DIMENSION(Nr, Nt, 7, 7) :: rabi ! rabi values
   complex(cdp), dimension(Nt, Nr, 7, 7) :: rabi
   real(dp), dimension(Nt, Nr, 27) :: linr
-  rea
   integer :: i
   real(dp) :: Tr12, Tr16, Tr23, Tr24, Tr25, Tr27, Tr36, Tr46, Tr56, Tr67
 
@@ -470,8 +467,8 @@ subroutine polarization_term(p, pterm)
   implicit none
   complex(cdp), dimension(Nt, Nr), intent(in) :: p
   complex(cdp), dimension(Nt, Nr), intent(out) :: pterm
-  complex(cdp), dimension(Nt, Nr) :: p_fourier_c
-  real(cdp), dimension(2*Nt,Nr) :: p_fourier_r
+  complex(cdp), dimension(Nt, Nr) :: p_fourier_c   ! complex fourier transform of p in standard format
+  real(cdp), dimension(2*Nt,Nr) :: p_fourier_r     ! complex fourier transform of p in double real format
   integer :: i
   
   do i=1, Nr 
@@ -556,9 +553,9 @@ subroutine RightHandFieldTerms(FAfield, omega, RHFT)
 
   call ddaperp(FAfield, perpFA)
   do i=1, Nt
-    RHFT(i, :) = k0 * FAfield(i, :) ! (i)
+    RHFT(i, :) = (k0 ** 2) * FAfield(i, :) ! (i)
     RHFT(i, :) = RHFT(i, :) - (2 * k0 / v_g) * omega(i) * FAfield(i, :) ! (iii)
-    RHFT(i, :) = RHFT(i, :) + (1.0_dp / v_g ** 2) * (omega(i) ** 2) * FAfield(i, :) ! (v)
+    RHFT(i, :) = RHFT(i, :) + ((omega(i) / v_g) ** 2) * FAfield(i, :) ! (v)
     RHFT(i, :) = RHFT(i, :) - perpFA(i, :) ! (vi)
     RHFT(i, :) = RHFT(i, :) + (omega0 / v_g) ** 2 * FAfield(i, :) ! (vii)
     RHFT(i, :) = RHFT(i, :) - (2.0_dp * omega0 / v_g ** 2) * omega(i) * FAfield(i, :) ! (viii)
@@ -566,7 +563,7 @@ subroutine RightHandFieldTerms(FAfield, omega, RHFT)
   end do
 end subroutine RightHandFieldTerms
 !_________________________________________________________________
-subroutine PropagationStep(FA_n, FP_n, FA_np1)
+subroutine DeprecatedPropagationStep(FA_n, FP_n, FA_np1)
   use nrtype
   use declare, only : dt, Nt, Nr, im, dz, v_g, k0, freq
   implicit none
@@ -584,6 +581,22 @@ subroutine PropagationStep(FA_n, FP_n, FA_np1)
   do i=1, Nt
     FA_np1(i, :) = FA_n(i, :) - (im * dz / 2) * (v_g / (k0 * v_g - omega(i))) * (RHFT(i, :) + RHPT(i, :))
   end do
+end subroutine PropagationStep
+!_________________________________________________________________
+subroutine PropagationStep(FA_n, FP_n, FA_np1)
+  use nrtype
+  use declare, only : dt, Nt, Nr, im, dz, v_g, k0, freq, omega0
+  implicit none
+  complex(cdp), dimension(Nt, Nr), intent(in) :: FA_n ! Fourier transform of Afield at step z_n
+  complex(cdp), dimension(Nt, Nr), intent(in) :: FP_n ! Fourier transform of Polarization field (PField)
+  complex(cdp), dimension(Nt, Nr), intent(out) :: FA_np1 ! Fourier transform of Afield at step z_n+dz
+  complex(cdp), dimension(Nt, Nr) :: RHFT, RHPT, D, T
+  real(dp), dimension(Nt) :: omega
+  integer(i4b) :: i
+
+  omega = freq  ! use frequency grid from declare module
+
+  D(:, :) = (k_0 ** 2 + omega_0 ** 2)
 end subroutine PropagationStep
 !_________________________________________________________________
 subroutine PolarizationTerms(FPField, omega, RHPT)
